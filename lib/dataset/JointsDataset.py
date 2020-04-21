@@ -61,7 +61,7 @@ class JointsDataset(Dataset):
         return len(self.db)
 
     def __getitem__(self, idx):
-        db_rec = copy.deepcopy(self.db[idx])
+        db_rec = copy.deepcopy(self.db[idx]) # dict_keys(['image', 'center', 'scale', 'joints_3d', 'joints_3d_vis', 'filename', 'imgnum'])
 
         image_file = db_rec['image']
         filename = db_rec['filename'] if 'filename' in db_rec else ''
@@ -72,8 +72,8 @@ class JointsDataset(Dataset):
             data_numpy = zipreader.imread(
                 image_file, cv2.IMREAD_COLOR | cv2.IMREAD_IGNORE_ORIENTATION)
         else:
-            data_numpy = cv2.imread(
-                image_file, cv2.IMREAD_COLOR | cv2.IMREAD_IGNORE_ORIENTATION)
+            data_numpy = cv2.imread( 
+                image_file, cv2.IMREAD_COLOR | cv2.IMREAD_IGNORE_ORIENTATION) # e.g. data_numpy.shape = (426, 640, 3)
 
         if data_numpy is None:
             logger.error('=> fail to read {}'.format(image_file))
@@ -90,31 +90,31 @@ class JointsDataset(Dataset):
         if self.is_train:
             sf = self.scale_factor
             rf = self.rotation_factor
-            s = s * np.clip(np.random.randn()*sf + 1, 1 - sf, 1 + sf)
+            s = s * np.clip(np.random.randn()*sf + 1, 1 - sf, 1 + sf) # scale factorにaugmentation, prob = 1
             r = np.clip(np.random.randn()*rf, -rf*2, rf*2) \
-                if random.random() <= 0.6 else 0
+                if random.random() <= 0.6 else 0 # rotate のaugmentation, p=0.6
 
-            if self.flip and random.random() <= 0.5:
+            if self.flip and random.random() <= 0.5: # horizontal flip p=0.5
                 data_numpy = data_numpy[:, ::-1, :]
                 joints, joints_vis = fliplr_joints(
                     joints, joints_vis, data_numpy.shape[1], self.flip_pairs)
-                c[0] = data_numpy.shape[1] - c[0] - 1
+                c[0] = data_numpy.shape[1] - c[0] - 1 # centerをflip
 
-        trans = get_affine_transform(c, s, r, self.image_size)
+        trans = get_affine_transform(c, s, r, self.image_size) # affine変換
         input = cv2.warpAffine(
             data_numpy,
             trans,
             (int(self.image_size[0]), int(self.image_size[1])),
-            flags=cv2.INTER_LINEAR)
+            flags=cv2.INTER_LINEAR) # resize
 
         if self.transform:
-            input = self.transform(input)
+            input = self.transform(input) # normalize
 
         for i in range(self.num_joints):
             if joints_vis[i, 0] > 0.0:
                 joints[i, 0:2] = affine_transform(joints[i, 0:2], trans)
 
-        target, target_weight = self.generate_target(joints, joints_vis)
+        target, target_weight = self.generate_target(joints, joints_vis) # target: heatmap, target_weight: ignore
 
         target = torch.from_numpy(target)
         target_weight = torch.from_numpy(target_weight)
@@ -187,16 +187,16 @@ class JointsDataset(Dataset):
             tmp_size = self.sigma * 3
 
             for joint_id in range(self.num_joints):
-                feat_stride = self.image_size / self.heatmap_size
-                mu_x = int(joints[joint_id][0] / feat_stride[0] + 0.5)
-                mu_y = int(joints[joint_id][1] / feat_stride[1] + 0.5)
+                feat_stride = self.image_size / self.heatmap_size # heatmapのscale = 4
+                mu_x = int(joints[joint_id][0] / feat_stride[0] + 0.5) # ヒートマップにおけるキーポイントのピクセルの座標
+                mu_y = int(joints[joint_id][1] / feat_stride[1] + 0.5) 
                 # Check that any part of the gaussian is in-bounds
-                ul = [int(mu_x - tmp_size), int(mu_y - tmp_size)]
-                br = [int(mu_x + tmp_size + 1), int(mu_y + tmp_size + 1)]
+                ul = [int(mu_x - tmp_size), int(mu_y - tmp_size)] # mu - 6
+                br = [int(mu_x + tmp_size + 1), int(mu_y + tmp_size + 1)] # mu + 6 + 1
                 if ul[0] >= self.heatmap_size[0] or ul[1] >= self.heatmap_size[1] \
                         or br[0] < 0 or br[1] < 0:
                     # If not, just return the image as is
-                    target_weight[joint_id] = 0
+                    target_weight[joint_id] = 0 # scaleが逆なら無視
                     continue
 
                 # # Generate gaussian
@@ -205,7 +205,7 @@ class JointsDataset(Dataset):
                 y = x[:, np.newaxis]
                 x0 = y0 = size // 2
                 # The gaussian is not normalized, we want the center value to equal 1
-                g = np.exp(- ((x - x0) ** 2 + (y - y0) ** 2) / (2 * self.sigma ** 2))
+                g = np.exp(- ((x - x0) ** 2 + (y - y0) ** 2) / (2 * self.sigma ** 2)) # 13 x 13
 
                 # Usable gaussian range
                 g_x = max(0, -ul[0]), min(br[0], self.heatmap_size[0]) - ul[0]
@@ -214,7 +214,7 @@ class JointsDataset(Dataset):
                 img_x = max(0, ul[0]), min(br[0], self.heatmap_size[0])
                 img_y = max(0, ul[1]), min(br[1], self.heatmap_size[1])
 
-                v = target_weight[joint_id]
+                v = target_weight[joint_id] # 貼り付け
                 if v > 0.5:
                     target[joint_id][img_y[0]:img_y[1], img_x[0]:img_x[1]] = \
                         g[g_y[0]:g_y[1], g_x[0]:g_x[1]]

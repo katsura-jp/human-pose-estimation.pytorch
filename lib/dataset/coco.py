@@ -150,34 +150,34 @@ class COCODataset(JointsDataset):
             y2 = np.min((height - 1, y1 + np.max((0, h - 1))))
             if obj['area'] > 0 and x2 >= x1 and y2 >= y1:
                 # obj['clean_bbox'] = [x1, y1, x2, y2]
-                obj['clean_bbox'] = [x1, y1, x2-x1, y2-y1]
+                obj['clean_bbox'] = [x1, y1, x2-x1, y2-y1] # x1, y1, w, h を格納
                 valid_objs.append(obj)
         objs = valid_objs
 
         rec = []
         for obj in objs:
             cls = self._coco_ind_to_class_ind[obj['category_id']]
-            if cls != 1:
+            if cls != 1: # objがpersonかどうか
                 continue
 
             # ignore objs without keypoints annotation
-            if max(obj['keypoints']) == 0:
+            if max(obj['keypoints']) == 0: # keypointがなければ弾く
                 continue
 
-            joints_3d = np.zeros((self.num_joints, 3), dtype=np.float)
-            joints_3d_vis = np.zeros((self.num_joints, 3), dtype=np.float)
+            joints_3d = np.zeros((self.num_joints, 3), dtype=np.float) # 17 x 3 x, y を格納
+            joints_3d_vis = np.zeros((self.num_joints, 3), dtype=np.float) # 17 x 3　t_vis \in {0, 1} を格納. joints_3dに対応
             for ipt in range(self.num_joints):
-                joints_3d[ipt, 0] = obj['keypoints'][ipt * 3 + 0]
-                joints_3d[ipt, 1] = obj['keypoints'][ipt * 3 + 1]
+                joints_3d[ipt, 0] = obj['keypoints'][ipt * 3 + 0] # x-axis
+                joints_3d[ipt, 1] = obj['keypoints'][ipt * 3 + 1] # y-axis
                 joints_3d[ipt, 2] = 0
                 t_vis = obj['keypoints'][ipt * 3 + 2]
-                if t_vis > 1:
+                if t_vis > 1: # label=2ならば1にする（0 or 1にする)
                     t_vis = 1
                 joints_3d_vis[ipt, 0] = t_vis
                 joints_3d_vis[ipt, 1] = t_vis
                 joints_3d_vis[ipt, 2] = 0
 
-            center, scale = self._box2cs(obj['clean_bbox'][:4])
+            center, scale = self._box2cs(obj['clean_bbox'][:4]) # center(x+w/2, y+h/2), s
             rec.append({
                 'image': self.image_path_from_index(index),
                 'center': center,
@@ -222,7 +222,7 @@ class COCODataset(JointsDataset):
         data_name = prefix + '.zip@' if self.data_format == 'zip' else prefix
 
         image_path = os.path.join(
-            self.root, 'images', data_name, file_name)
+            self.root, data_name, file_name)
 
         return image_path
 
