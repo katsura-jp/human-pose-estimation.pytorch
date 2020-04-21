@@ -218,6 +218,17 @@ def get_model_name(cfg):
             width=cfg.MODEL.IMAGE_SIZE[0],
             name=name,
             deconv_suffix=deconv_suffix)
+    elif name in ['pose_mobilenet']:
+        name = '{model}'.format(
+            model=name)
+        deconv_suffix = ''.join(
+            'd{}'.format(num_filters)
+            for num_filters in extra.NUM_DECONV_FILTERS)
+        full_name = '{height}x{width}_{name}_{deconv_suffix}'.format(
+            height=cfg.MODEL.IMAGE_SIZE[1],
+            width=cfg.MODEL.IMAGE_SIZE[0],
+            name=name,
+            deconv_suffix=deconv_suffix)        
     else:
         raise ValueError('Unkown model: {}'.format(cfg.MODEL))
 
