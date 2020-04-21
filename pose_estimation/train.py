@@ -61,7 +61,9 @@ def parse_args():
     parser.add_argument('--workers',
                         help='num of dataloader workers',
                         type=int)
-
+    parser.add_argument('--resume',
+                        help='checkpoint path',
+                        action='store_true')
     args = parser.parse_args()
 
     return args
@@ -162,12 +164,24 @@ def main():
         shuffle=False,
         num_workers=config.WORKERS,
         pin_memory=True
-    )
+    )   
 
     best_perf = 0.0
     best_model = False
+    
+    if args.resume:
+        ckpt = torch.load(os.path.join(final_output_dir, 'checkpoint.pth.tar'))
+        resume_epoch = ckpt['epoch']
+        model.load_state_dict(ckpt['state_dict'])
+        best_perf = ckpt['best_perf']
+
     for epoch in range(config.TRAIN.BEGIN_EPOCH, config.TRAIN.END_EPOCH):
         lr_scheduler.step()
+        if args.resume:
+            if epoch < resume_epoch:
+                continue
+            elif epoch == resume_epoch:
+                optimizer.load_state_dict(ckpt['optimizer'])
 
         # train for one epoch
         train(config, train_loader, model, criterion, optimizer, epoch,
@@ -192,6 +206,7 @@ def main():
             'state_dict': model.state_dict(),
             'perf': perf_indicator,
             'optimizer': optimizer.state_dict(),
+            'best_perf': best_perf,
         }, best_model, final_output_dir)
 
     final_model_state_file = os.path.join(final_output_dir,
